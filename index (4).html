@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>フラッシュ暗算</title>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Antique+Soft&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --border: #2a2a3a;
+      --accent: #00e5ff;
+      --accent2: #ff4d6d;
+      --text: #e8e8f0;
+      --muted: #6060a0;
+      --correct: #00e5a0;
+      --wrong: #ff4d6d;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      padding: 1.5rem 0;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.25;
+      z-index: 0;
+    }
+
+    .app { position: relative; z-index: 1; width: min(520px, 94vw); }
+
+    .header { text-align: center; margin-bottom: 1.5rem; }
+    .header h1 {
+      font-family: 'Zen Antique Soft', serif;
+      font-size: clamp(1.8rem, 6vw, 2.6rem);
+      letter-spacing: 0.2em;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .header p { color: var(--muted); font-size: 0.7rem; letter-spacing: 0.15em; margin-top: 0.25rem; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem;
+      box-shadow: 0 0 40px rgba(0,229,255,0.04);
+    }
+
+    /* ===== SETTINGS ===== */
+    .section-title {
+      font-size: 0.63rem; letter-spacing: 0.25em;
+      color: var(--muted); text-transform: uppercase; margin-bottom: 0.55rem;
+    }
+    .tab-row { display: flex; gap: 0.4rem; margin-bottom: 1rem; }
+    .tab-btn {
+      flex: 1; padding: 0.45rem 0.2rem;
+      background: transparent; border: 1px solid var(--border); border-radius: 6px;
+      color: var(--muted); font-family: 'Share Tech Mono', monospace;
+      font-size: 0.7rem; cursor: pointer; transition: all 0.15s; line-height: 1.3;
+    }
+    .tab-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.07); }
+
+    .level-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      gap: 0.4rem; margin-bottom: 1.2rem;
+    }
+    .lvl-btn {
+      padding: 0.55rem 0.2rem; background: transparent;
+      border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-family: 'Share Tech Mono', monospace;
+      font-size: 0.78rem; cursor: pointer; transition: all 0.15s; text-align: center;
+    }
+    .lvl-btn:hover { border-color: var(--muted); }
+    .lvl-btn.selected {
+      border-color: var(--accent); color: var(--accent);
+      background: rgba(0,229,255,0.1); box-shadow: 0 0 10px rgba(0,229,255,0.15);
+    }
+
+    .level-info {
+      background: rgba(0,229,255,0.04); border: 1px solid rgba(0,229,255,0.18);
+      border-radius: 8px; padding: 0.9rem 1rem; margin-bottom: 1.2rem;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; text-align: center;
+    }
+    .info-item span:first-child {
+      font-size: 0.57rem; letter-spacing: 0.15em; color: var(--muted);
+      display: block; text-transform: uppercase; margin-bottom: 0.2rem;
+    }
+    .info-item span:last-child { font-size: 1rem; color: var(--accent); }
+    .no-carry-badge {
+      grid-column: 1 / -1; font-size: 0.63rem; color: #ffd700;
+      letter-spacing: 0.08em; padding-top: 0.35rem;
+      border-top: 1px solid rgba(255,215,0,0.2); margin-top: 0.25rem;
+    }
+
+    /* 問題数スライダー */
+    .q-count-box {
+      margin-bottom: 1.2rem; background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 1rem;
+      display: none;
+    }
+    .q-count-box.visible { display: block; }
+    .q-count-label {
+      font-size: 0.6rem; letter-spacing: 0.2em; color: var(--muted);
+      text-transform: uppercase; margin-bottom: 0.55rem;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .q-count-label span:last-child { font-size: 1rem; color: var(--accent); letter-spacing: 0; }
+    input[type=range] {
+      width: 100%; -webkit-appearance: none;
+      height: 4px; background: var(--border); border-radius: 2px; outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 16px; height: 16px;
+      border-radius: 50%; background: var(--accent); cursor: pointer; box-shadow: 0 0 8px var(--accent);
+    }
+
+    .btn-start {
+      width: 100%; padding: 0.9rem; background: transparent;
+      border: 1px solid var(--accent); border-radius: 8px; color: var(--accent);
+      font-family: 'Share Tech Mono', monospace; font-size: 1rem;
+      letter-spacing: 0.2em; cursor: pointer; transition: all 0.2s;
+      position: relative; overflow: hidden;
+    }
+    .btn-start::after { content: ''; position: absolute; inset: 0; background: var(--accent); opacity: 0; transition: opacity 0.2s; }
+    .btn-start:hover::after { opacity: 0.1; }
+    .btn-start:active { transform: scale(0.98); }
+
+    /* ===== GAME ===== */
+    #game-screen { display: none; padding: 0 !important; border-radius: 12px; overflow: hidden; }
+    .flash-stage { background: #000; border-radius: 12px; padding: 1.5rem 2rem 2rem; }
+    .game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+    .game-level-badge { font-size: 0.65rem; letter-spacing: 0.15em; color: rgba(57,255,20,0.55); }
+    .game-q-label     { font-size: 0.65rem; letter-spacing: 0.15em; color: rgba(57,255,20,0.55); }
+    .flash-count-label { font-size: 0.65rem; letter-spacing: 0.2em; color: rgba(57,255,20,0.4); }
+
+    .progress-bar-wrap { height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; margin-bottom: 1.5rem; overflow: hidden; }
+    .progress-bar { height: 100%; background: #39ff14; border-radius: 2px; transition: width 0.1s linear; }
+
+    .number-display { text-align: center; min-height: 160px; display: flex; align-items: center; justify-content: center; }
+    .flash-number {
+      font-family: 'Zen Antique Soft', serif;
+      font-size: clamp(4rem, 20vw, 6rem); color: #39ff14; line-height: 1;
+      transition: opacity 0.08s;
+      text-shadow: 0 0 30px rgba(57,255,20,0.6), 0 0 60px rgba(57,255,20,0.25);
+    }
+    .flash-number.hidden   { opacity: 0; }
+    .flash-number.flash-in { animation: flashIn 0.1s ease; }
+    @keyframes flashIn { 0% { transform: scale(1.12); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+    .countdown {
+      font-family: 'Zen Antique Soft', serif;
+      font-size: clamp(2rem, 12vw, 3.5rem);
+      color: rgba(57,255,20,0.7);
+      letter-spacing: 0.15em;
+      animation: pulseFade 0.4s ease;
+    }
+    .countdown.hidden { display: none; }
+    @keyframes pulseFade {
+      0%   { transform: scale(1.3); opacity: 0; }
+      40%  { opacity: 1; }
+      100% { transform: scale(1);   opacity: 1; }
+    }
+
+    /* ===== ANSWER ===== */
+    #answer-screen { display: none; }
+    .answer-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .answer-q-badge { font-size: 0.65rem; letter-spacing: 0.15em; color: var(--accent); }
+    .answer-prompt { font-size: 0.7rem; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; }
+    .answer-input {
+      width: 100%; background: transparent; border: none;
+      border-bottom: 2px solid var(--accent); color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: clamp(2rem, 10vw, 3rem); text-align: center; outline: none;
+      padding: 0.3rem 0; caret-color: var(--accent);
+    }
+    .btn-submit {
+      margin-top: 1.5rem; width: 100%; padding: 0.9rem;
+      background: var(--accent); border: none; border-radius: 8px;
+      color: var(--bg); font-family: 'Share Tech Mono', monospace;
+      font-size: 1rem; letter-spacing: 0.15em; cursor: pointer; font-weight: bold; transition: all 0.15s;
+    }
+    .btn-submit:hover { filter: brightness(1.1); }
+    .btn-submit:active { transform: scale(0.98); }
+
+    /* ===== SUMMARY ===== */
+    #summary-screen { display: none; }
+    .summary-header { text-align: center; margin-bottom: 1.2rem; }
+    .summary-score {
+      font-family: 'Zen Antique Soft', serif;
+      font-size: clamp(2.5rem, 12vw, 4rem);
+      line-height: 1;
+    }
+    .summary-score .num { color: var(--correct); text-shadow: 0 0 20px var(--correct); }
+    .summary-score .denom { color: var(--muted); font-size: 0.6em; }
+    .summary-label { font-size: 0.65rem; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-top: 0.3rem; }
+
+    .q-list { display: flex; flex-direction: column; gap: 0.5rem; margin: 1.2rem 0; max-height: 260px; overflow-y: auto; }
+    .q-row {
+      display: grid; grid-template-columns: auto 1fr auto auto;
+      align-items: center; gap: 0.6rem;
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 6px; padding: 0.55rem 0.8rem; font-size: 0.75rem;
+    }
+    .q-row.correct { border-color: rgba(0,229,160,0.3); }
+    .q-row.wrong   { border-color: rgba(255,77,109,0.3); }
+    .q-num   { color: var(--muted); font-size: 0.65rem; min-width: 1.5rem; }
+    .q-nums  { color: var(--text); font-size: 0.72rem; word-break: break-all; }
+    .q-ans   { font-size: 0.8rem; }
+    .q-mark  { font-size: 1rem; }
+    .q-row.correct .q-ans { color: var(--correct); }
+    .q-row.wrong   .q-ans { color: var(--wrong); }
+
+    .streak-line { font-size: 0.75rem; color: var(--accent2); text-align: center; margin-bottom: 0.8rem; }
+
+    .btn-retry {
+      width: 100%; padding: 0.85rem; background: transparent;
+      border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+      font-family: 'Share Tech Mono', monospace; font-size: 0.82rem;
+      letter-spacing: 0.1em; cursor: pointer; margin-top: 0.5rem; transition: all 0.15s;
+    }
+    .btn-retry:hover { border-color: var(--accent); color: var(--accent); }
+
+    .screen { animation: fadeUp 0.22s ease; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* scrollbar */
+    .q-list::-webkit-scrollbar { width: 4px; }
+    .q-list::-webkit-scrollbar-track { background: transparent; }
+    .q-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>フラッシュ暗算</h1>
+    <p>FLASH MENTAL ARITHMETIC</p>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card screen" id="settings-screen">
+    <p class="section-title">カテゴリ</p>
+    <div class="tab-row">
+      <button class="tab-btn active" data-cat="kyu">級（20〜11級）</button>
+      <button class="tab-btn"        data-cat="dan1">級（10〜1級）</button>
+      <button class="tab-btn"        data-cat="dan2">段（初段〜十段）</button>
+    </div>
+
+    <p class="section-title">レベルを選ぶ</p>
+    <div class="level-grid" id="level-grid"></div>
+
+    <div class="level-info" id="level-info">
+      <div class="info-item"><span>桁数</span><span id="info-digits">—</span></div>
+      <div class="info-item"><span>口数</span><span id="info-count">—</span></div>
+      <div class="info-item"><span>制限時間</span><span id="info-time">—</span></div>
+    </div>
+
+    <!-- 問題数スライダー -->
+    <div class="q-count-box" id="q-count-box">
+      <div class="q-count-label">
+        <span>問題数（何問解くか）</span>
+        <span id="q-count-val">5問</span>
+      </div>
+      <input type="range" id="q-count-slider" min="1" max="20" value="5" />
+    </div>
+
+    <button class="btn-start" id="btn-start">▶ スタート</button>
+  </div>
+
+  <!-- GAME (flash) -->
+  <div class="card screen" id="game-screen">
+    <div class="flash-stage">
+      <div class="game-header">
+        <span class="game-level-badge" id="game-level-badge"></span>
+        <span class="game-q-label" id="game-q-label"></span>
+      </div>
+      <div class="number-display">
+        <div class="flash-number hidden" id="flash-number">0</div>
+        <div class="countdown hidden" id="countdown">…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANSWER -->
+  <div class="card screen" id="answer-screen">
+    <div class="answer-top">
+      <span class="answer-q-badge" id="answer-q-badge"></span>
+      <span class="answer-prompt">答えを入力</span>
+    </div>
+    <input type="number" id="answer-input" class="answer-input" placeholder="?" inputmode="numeric" />
+    <button class="btn-submit" id="btn-submit">決定 →</button>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="card screen" id="summary-screen">
+    <div class="summary-header">
+      <div class="summary-score">
+        <span class="num" id="summary-correct">0</span>
+        <span class="denom" id="summary-denom"> / 0問</span>
+      </div>
+      <div class="summary-label">正解数</div>
+    </div>
+    <div class="streak-line" id="summary-streak"></div>
+    <div class="q-list" id="q-list"></div>
+    <button class="btn-retry" id="btn-retry-same">↺ もう一度（同じ設定）</button>
+    <button class="btn-retry" id="btn-settings" style="margin-top:0.4rem">⚙ 設定に戻る</button>
+  </div>
+</div>
+
+<script>
+// ===== LEVEL TABLE =====
+const LEVELS = {
+  kyu: [
+    { label:'20級', digits:1, count:3,  timeMs:null,  noCarry:true },
+    { label:'19級', digits:1, count:3,  timeMs:null,  noCarry:true },
+    { label:'18級', digits:1, count:5,  timeMs:null,  noCarry:true },
+    { label:'17級', digits:1, count:8,  timeMs:10000, noCarry:true },
+    { label:'16級', digits:1, count:10, timeMs:12000, noCarry:true },
+    { label:'15級', digits:1, count:12, timeMs:15000, noCarry:true },
+    { label:'14級', digits:1, count:15, timeMs:15000, noCarry:true },
+    { label:'13級', digits:1, count:20, timeMs:15000, noCarry:true },
+    { label:'12級', digits:2, count:10, timeMs:10000, noCarry:true },
+    { label:'11級', digits:2, count:15, timeMs:15000, noCarry:true },
+  ],
+  dan1: [
+    { label:'10級', digits:2, count:2,  timeMs:4000,  noCarry:false },
+    { label:'9級',  digits:2, count:3,  timeMs:6000,  noCarry:false },
+    { label:'8級',  digits:2, count:4,  timeMs:7000,  noCarry:false },
+    { label:'7級',  digits:2, count:5,  timeMs:8000,  noCarry:false },
+    { label:'6級',  digits:2, count:6,  timeMs:9000,  noCarry:false },
+    { label:'5級',  digits:2, count:7,  timeMs:10000, noCarry:false },
+    { label:'4級',  digits:2, count:8,  timeMs:11000, noCarry:false },
+    { label:'3級',  digits:2, count:10, timeMs:12000, noCarry:false },
+    { label:'2級',  digits:2, count:12, timeMs:12000, noCarry:false },
+    { label:'1級',  digits:2, count:15, timeMs:13000, noCarry:false },
+  ],
+  dan2: [
+    { label:'初段', digits:2, count:15, timeMs:10000, noCarry:false },
+    { label:'二段', digits:3, count:4,  timeMs:4000,  noCarry:false },
+    { label:'三段', digits:3, count:6,  timeMs:5000,  noCarry:false },
+    { label:'四段', digits:3, count:8,  timeMs:6000,  noCarry:false },
+    { label:'五段', digits:3, count:10, timeMs:7000,  noCarry:false },
+    { label:'六段', digits:3, count:12, timeMs:8000,  noCarry:false },
+    { label:'七段', digits:3, count:15, timeMs:8000,  noCarry:false },
+    { label:'八段', digits:3, count:15, timeMs:6000,  noCarry:false },
+    { label:'九段', digits:3, count:15, timeMs:4500,  noCarry:false },
+    { label:'十段', digits:3, count:15, timeMs:3000,  noCarry:false },
+  ]
+};
+
+// ===== SOUND =====
+let audioCtx = null;
+
+// 数字が出る時の「ピッ」
+function beep() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(550, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.08);
+  } catch(e) {}
+}
+
+// 開始の「ピーーピーー」
+function doubleBeep() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.55].forEach(delay => {
+      const osc  = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(420, audioCtx.currentTime + delay);
+      gain.gain.setValueAtTime(0, audioCtx.currentTime + delay);
+      gain.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + delay + 0.02);
+      gain.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + delay + 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + 0.45);
+      osc.start(audioCtx.currentTime + delay);
+      osc.stop(audioCtx.currentTime  + delay + 0.5);
+    });
+  } catch(e) {}
+}
+
+// ===== STATE =====
+let currentCat = 'kyu';
+let selectedLevel = null;
+let totalQuestions = 5;   // 問題数（セッション全体）
+
+// 1問ごとの状態
+let numbers = [], currentIdx = 0, correctAnswer = 0;
+let speedMs = 1000;
+
+// セッション状態
+let sessionQ = 0;          // 現在の問題番号（1始まり）
+let sessionResults = [];   // { numbers, correct, user, isCorrect }
+let streak = 0;
+
+// ===== 問題数スライダー =====
+const qSlider = document.getElementById('q-count-slider');
+const qValLabel = document.getElementById('q-count-val');
+qSlider.addEventListener('input', () => {
+  totalQuestions = +qSlider.value;
+  qValLabel.textContent = totalQuestions + '問';
+});
+
+// ===== TABS =====
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentCat = btn.dataset.cat;
+    selectedLevel = null;
+    renderLevelGrid();
+    updateLevelInfo();
+  });
+});
+
+// ===== LEVEL GRID =====
+function renderLevelGrid() {
+  const grid = document.getElementById('level-grid');
+  grid.innerHTML = '';
+  LEVELS[currentCat].forEach(lv => {
+    const btn = document.createElement('button');
+    btn.className = 'lvl-btn' + (selectedLevel === lv ? ' selected' : '');
+    btn.textContent = lv.label;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.lvl-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedLevel = lv;
+      updateLevelInfo();
+    });
+    grid.appendChild(btn);
+  });
+}
+
+function updateLevelInfo() {
+  const lv = selectedLevel;
+  if (!lv) {
+    document.getElementById('info-digits').textContent = '—';
+    document.getElementById('info-count').textContent  = '—';
+    document.getElementById('info-time').textContent   = '—';
+    const b = document.getElementById('no-carry-badge');
+    if (b) b.remove();
+    document.getElementById('q-count-box').classList.remove('visible');
+    return;
+  }
+  document.getElementById('info-digits').textContent = lv.digits + '桁';
+  document.getElementById('info-count').textContent  = lv.count  + '口';
+  document.getElementById('info-time').textContent   = lv.timeMs ? (lv.timeMs / 1000) + '秒' : '—';
+
+  document.getElementById('q-count-box').classList.add('visible');
+
+  const info = document.getElementById('level-info');
+  let b = document.getElementById('no-carry-badge');
+  if (lv.noCarry) {
+    if (!b) { b = document.createElement('div'); b.id = 'no-carry-badge'; b.className = 'no-carry-badge'; info.appendChild(b); }
+    b.textContent = '⚠ 繰り上がりなしで出題されます';
+  } else {
+    if (b) b.remove();
+  }
+}
+
+renderLevelGrid();
+updateLevelInfo();
+
+// ===== START =====
+document.getElementById('btn-start').addEventListener('click', () => {
+  if (!selectedLevel) { alert('レベルを選んでください'); return; }
+  startSession();
+});
+
+// ===== SESSION =====
+function startSession() {
+  sessionQ = 0;
+  sessionResults = [];
+  streak = 0;
+  nextQuestion();
+}
+
+function nextQuestion() {
+  sessionQ++;
+  const lv = selectedLevel;
+  speedMs = lv.timeMs ? Math.max(200, Math.floor(lv.timeMs / lv.count)) : 1500;
+
+  numbers = lv.noCarry
+    ? genNoCarryNumbers(lv.digits, lv.count)
+    : Array.from({length: lv.count}, () => randNum(lv.digits));
+  correctAnswer = numbers.reduce((a, b) => a + b, 0);
+  currentIdx = 0;
+
+  document.getElementById('game-level-badge').textContent = lv.label;
+  document.getElementById('game-q-label').textContent     = `${sessionQ} / ${totalQuestions}問目`;
+  show('game-screen');
+
+  // 真っ暗画面でピーピー → スタート
+  const fn = document.getElementById('flash-number');
+  fn.classList.add('hidden');
+
+  setTimeout(() => {
+    doubleBeep();
+    setTimeout(() => showNextNumber(), 1300);
+  }, 300);
+}
+
+// ===== FLASH =====
+function showNextNumber() {
+  const el = document.getElementById('flash-number');
+  if (currentIdx >= numbers.length) {
+    // 答え入力へ
+    document.getElementById('answer-q-badge').textContent = `${sessionQ} / ${totalQuestions}問目`;
+    show('answer-screen');
+    const inp = document.getElementById('answer-input');
+    inp.value = '';
+    setTimeout(() => inp.focus(), 100);
+    return;
+  }
+  el.textContent = numbers[currentIdx];
+  el.classList.remove('hidden', 'flash-in');
+  void el.offsetWidth;
+  el.classList.add('flash-in');
+  beep();
+  currentIdx++;
+
+  const showDur = Math.max(100, speedMs - Math.min(80, speedMs * 0.15));
+  setTimeout(() => {
+    el.classList.add('hidden');
+    setTimeout(showNextNumber, 60);
+  }, showDur);
+}
+
+
+// ===== ANSWER =====
+document.getElementById('btn-submit').addEventListener('click', checkAnswer);
+document.getElementById('answer-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
+
+function checkAnswer() {
+  const inp = document.getElementById('answer-input');
+  const userAnswer = parseInt(inp.value, 10);
+  if (isNaN(userAnswer)) { inp.focus(); return; }
+
+  const isCorrect = userAnswer === correctAnswer;
+  sessionResults.push({ numbers: [...numbers], correct: correctAnswer, user: userAnswer, isCorrect });
+
+  if (sessionQ < totalQuestions) {
+    nextQuestion();
+  } else {
+    showSummary();
+  }
+}
+
+// ===== SUMMARY =====
+function showSummary() {
+  const correctCount = sessionResults.filter(r => r.isCorrect).length;
+  streak = correctCount === totalQuestions ? totalQuestions : 0;
+
+  document.getElementById('summary-correct').textContent = correctCount;
+  document.getElementById('summary-denom').textContent   = ` / ${totalQuestions}問`;
+
+  const streakEl = document.getElementById('summary-streak');
+  if (correctCount === totalQuestions) {
+    streakEl.textContent = '🎉 全問正解！';
+  } else if (correctCount === 0) {
+    streakEl.textContent = '😢 もう一度チャレンジ！';
+  } else {
+    streakEl.textContent = '';
+  }
+
+  // 問題一覧
+  const list = document.getElementById('q-list');
+  list.innerHTML = '';
+  sessionResults.forEach((r, i) => {
+    const row = document.createElement('div');
+    row.className = 'q-row ' + (r.isCorrect ? 'correct' : 'wrong');
+    row.innerHTML = `
+      <span class="q-num">${i + 1}</span>
+      <span class="q-nums">${r.numbers.join(' + ')}</span>
+      <span class="q-ans">${r.isCorrect ? r.correct : r.user + ' → ' + r.correct}</span>
+      <span class="q-mark">${r.isCorrect ? '⭕' : '❌'}</span>
+    `;
+    list.appendChild(row);
+  });
+
+  show('summary-screen');
+}
+
+// ===== RETRY =====
+document.getElementById('btn-retry-same').addEventListener('click', startSession);
+document.getElementById('btn-settings').addEventListener('click', () => show('settings-screen'));
+
+// ===== NUMBER GENERATION =====
+function randNum(d) {
+  const min = d === 1 ? 1 : Math.pow(10, d - 1);
+  const max = Math.pow(10, d) - 1;
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function genNoCarryNumbers(digits, count) {
+  const colSum = new Array(digits).fill(0);
+  const result = [];
+  for (let i = 0; i < count; i++) {
+    const digArr = [];
+    for (let d = 0; d < digits; d++) {
+      const remaining = 9 - colSum[d];
+      // 全桁・全口で1以上（0を出さない）
+      const lo = 1;
+      const hi = Math.max(lo, Math.min(9, remaining));
+      const v = lo + Math.floor(Math.random() * (hi - lo + 1));
+      digArr.push(v);
+      colSum[d] += v;
+    }
+    let num = 0;
+    for (let d = digits - 1; d >= 0; d--) num = num * 10 + digArr[d];
+    result.push(num);
+  }
+  return result;
+}
+
+// ===== SCREEN SWITCH =====
+function show(id) {
+  ['settings-screen','game-screen','answer-screen','summary-screen'].forEach(s => {
+    const el = document.getElementById(s);
+    el.style.display = 'none';
+    el.classList.remove('screen');
+  });
+  const t = document.getElementById(id);
+  t.style.display = 'block';
+  void t.offsetWidth;
+  t.classList.add('screen');
+}
+</script>
+</body>
+</html>
